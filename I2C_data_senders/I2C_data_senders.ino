@@ -1,6 +1,6 @@
 #include <Wire.h> //I2C library
-const int I2C_myAddress = 0b1000000; //7bit number identifing this device on the I2C Bus
-const int I2C_controllerAddress = 0b0000001; //7bit number identifing where data should be sent to
+const uint8_t I2C_myAddress = 0b0000100; //7bit number identifing this device on the I2C Bus
+const uint8_t I2C_controllerAddress = 0b0000001; //7bit number identifing where data should be sent to
 bool I2C_recievedFlag;
 char I2C_buffer[1024];
 
@@ -11,26 +11,26 @@ void I2C_interupt(int number_of_bytes);
 
 void setup() {
   // put your setup code here, to run once:
-  
   // initeate I2C protocol 
   I2C_recievedFlag = false;
-  char I2C_buffer[1024] = "";
+  I2C_buffer[1024] = "";
   Wire.begin(I2C_myAddress);
   Wire.onReceive(I2C_interupt);
 
-  randomSeed(I2C_myAddress);
+    // initiate serial protocol
+  Serial.begin(9600);
 
+  randomSeed(I2C_myAddress);
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
-  delay(100); //add delay
-
+  delay(100);
   //simulating sending data
-  delay(1000);
   String num = String(random(10), DEC);
   String mesage = "sensor id: " + String(I2C_myAddress) + ":\t" + num;
-  I2C_send(mesage.c_str());
+  // I2C_send(mesage.c_str());
+  I2C_send("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbcccccccccccccccccccccccccccccccdddddddddddddddddddddddddddddddeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeefffffffffffffffffffffffffffffffggggggggggggggggggggggggggggggghhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiijjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkklllllllllllllllllllllllllllllllmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnooooooooooooooooooooooooooooooopppppppppppppppppppppppppppppppqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrssssssssssssssssssssssssssssssstttttttttttttttttttttttttttttttuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz1111111111111111111111111111111222222222222222222222222222222233333333333333333333333333333334444444444444444444444444444444555555555555555555555555555555566666666666666666666666666666667777777777777777777777777777777");
 
   //handle I2C comands
   if(I2C_recievedFlag) I2C_recieve();
@@ -41,10 +41,28 @@ void loop() {
     functions like println() but to controller
     */
 void I2C_send(char message[]) {
-  Wire.beginTransmission(I2C_controllerAddress); //reserves the bus for transmitting
-  Wire.write(message); //writes the bytes to the bus
-  Wire.endTransmission(); //unreserves the bus
-}
+  int index = 0;
+  int bytes_sent = 0;
+  do {
+    Wire.beginTransmission(I2C_controllerAddress); //reserves the bus for transmitting
+
+    // sends my address so reader knows where this is coming from.
+    Wire.write(I2C_myAddress);
+    bytes_sent++;
+
+    // send the mesage in 32 byte chunks
+    do {
+      Wire.write(message[index]);
+      
+      index++;
+      bytes_sent++;
+    } while(message[index-1] != 0 && bytes_sent < 32);
+
+    Wire.endTransmission(); //unreserves the bus
+    delay(10);
+    bytes_sent = 0;
+  } while(message[index-1] != 0);
+} 
 
 /*  reads the I2C_buffer string 
     you can use this to signal what ever you want
