@@ -62,6 +62,13 @@ RTC_PCF8523 rtc; //create RTC object
 
 Adafruit_BMP3XX bmp; //create sensor object
 
+// I2C settup from senior project team
+#include <Wire.h> //I2C library
+const uint8_t I2C_myAddress = 0b0001000; //7bit number identifing this device on the I2C Bus
+const uint8_t I2C_dataCollectorAddress = 0b0000001; //7bit number identifing where data should be sent to
+void I2C_setUp();
+void I2C_send(char message[]);
+
 //Initialize SD Card
 const int SDPin = 33; //For ESP32, the SD pin should be 33.
 File MyLog;// create file object
@@ -78,6 +85,7 @@ void setup() {
   initializeSensors();
   BTConnect();
   SDcheck();
+  I2C_setUp();
   bmp.performReading(); // take a sensor reading
   bool uptodate = false; //keeps loop from constantly reprinting an unchanged menu
   while (SetupMode){ //loop through setup menu while cutdown is in setup mode    
@@ -315,6 +323,14 @@ void logAppend(fs::FS &fs){ // Writes data to log file
   file.print(Tem); //write temp in degrees F
   file.print(", Pressure (hPa): ");
   file.println(P); // write pressure in HPa
+  String message = "Flight time (s): " + String(T);
+  I2C_send(message.c_str());
+  String message = "Altitude (ft): " + String(A);
+  I2C_send(message.c_str());
+  String message = "Temperature (F): " + String(Tem);
+  I2C_send(message.c_str());
+  String message = "Pressure (hPa): " + String(P);
+  I2C_send(message.c_str());
 }
 
 //Servo setup
@@ -326,3 +342,53 @@ void initializeServo(){
 	trigger.setPeriodHertz(50);    
 	trigger.attach(ServoPin, 1000, 2000);
 }
+
+// run at startup initilizes I2C comunication
+void I2C_setUp() {
+  Wire.begin(I2C_myAddress);
+  Wire.setClock(10000);
+  Wire.setWireTimeout(0)//0 is no timeout
+}
+
+/*  sends data to I2C data controller
+    takes in a string
+    functions like println() but to controller
+    */
+void I2C_send(char message[]) {
+  Serial.println("in function");
+  int index = 0;
+  int bytes_sent = 0;
+
+  // gain controll of the buss
+  Wire.beginTransmission(I2C_dataCollectorAddress);
+  delay(10);
+  Wire.endTransmission(false);
+  Serial.println("first tansmision");
+
+  do {
+    // makes sure data collector isnt busy
+    bool busy = true;
+    while (busy) {
+      Wire.requestFrom(I2C_dataCollectorAddress, 1, false);
+      delay(5);
+      busy = Wire.read();
+    }
+
+    // send the mesage in 32 byte chunks
+    Wire.beginTransmission(I2C_dataCollectorAddress);
+    do {
+      Wire.write(message[index]);
+      
+      index++;
+      bytes_sent++;
+    } while(message[index-1] != 0 && bytes_sent < 32);
+
+    Wire.endTransmission(false);
+    bytes_sent = 0;
+  } while(message[index-1] != 0);
+
+  // release control of the buss
+  Wire.beginTransmission(I2C_dataCollectorAddress);
+  delay(10);
+  Wire.endTransmission(true);
+} 

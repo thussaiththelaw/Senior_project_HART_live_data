@@ -1,20 +1,28 @@
-#include <Wire.h> //I2C library
 
-// I2C settup
+
+// I2C settup from senior project team
+#include <Wire.h> //I2C library
 const uint8_t I2C_myAddress = 0b0000010; //7bit number identifing this device on the I2C Bus
-const uint8_t I2C_controllerAddress = 0b0000001; //7bit number identifing where data should be sent to
+const uint8_t I2C_dataCollectorAddress = 0b0000001; //7bit number identifing where data should be sent to
 void I2C_setUp();
 void I2C_send(char message[]);
 
 void setup() {
   // put your setup code here, to run once:
-  
+  I2C_setUp();
 }
 
 void loop() {
   delay(5000);
   I2C_send("2 resonable message");
 
+}
+
+// run at startup initilizes I2C comunication
+void I2C_setUp() {
+  Wire.begin(I2C_myAddress);
+  Wire.setClock(10000);
+  Wire.setWireTimeout(0)//0 is no timeout
 }
 
 /*  sends data to I2C data controller
@@ -27,7 +35,7 @@ void I2C_send(char message[]) {
   int bytes_sent = 0;
 
   // gain controll of the buss
-  Wire.beginTransmission(I2C_controllerAddress);
+  Wire.beginTransmission(I2C_dataCollectorAddress);
   delay(10);
   Wire.endTransmission(false);
   Serial.println("first tansmision");
@@ -36,13 +44,13 @@ void I2C_send(char message[]) {
     // makes sure data collector isnt busy
     bool busy = true;
     while (busy) {
-      Wire.requestFrom(I2C_controllerAddress, 1, false);
+      Wire.requestFrom(I2C_dataCollectorAddress, 1, false);
       delay(5);
       busy = Wire.read();
     }
 
     // send the mesage in 32 byte chunks
-    Wire.beginTransmission(I2C_controllerAddress);
+    Wire.beginTransmission(I2C_dataCollectorAddress);
     do {
       Wire.write(message[index]);
       
@@ -55,7 +63,7 @@ void I2C_send(char message[]) {
   } while(message[index-1] != 0);
 
   // release control of the buss
-  Wire.beginTransmission(I2C_controllerAddress);
+  Wire.beginTransmission(I2C_dataCollectorAddress);
   delay(10);
   Wire.endTransmission(true);
 } 

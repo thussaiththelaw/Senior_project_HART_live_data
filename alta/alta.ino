@@ -25,6 +25,13 @@ void useInterrupt(boolean); // Func prototype keeps Arduino 0023 happy
 
 File logfile;
 
+// I2C settup from senior project team
+#include <Wire.h> //I2C library
+const uint8_t I2C_myAddress = 0b0000100; //7bit number identifing this device on the I2C Bus
+const uint8_t I2C_dataCollectorAddress = 0b0000001; //7bit number identifing where data should be sent to
+void I2C_setUp();
+void I2C_send(char message[]);
+
 // read a Hex value and return the decimal equivalent
 uint8_t parseHex(char c) {
   if (c < '0')
@@ -69,6 +76,7 @@ void setup() {
   // connect at 115200 so we can read the GPS fast enough and echo without dropping chars
   // also spit it out
   Serial.begin(9600);
+  I2C_setUp();
   Serial.println("\r\nUltimate GPSlogger Shield");
   pinMode(ledPin, OUTPUT);
 
@@ -320,6 +328,57 @@ void loop() {
             logfile.println((int)GPS.fixquality);
             logfile.flush();
             }
+
+        // send over radio
+        String message = ""
+         message += String(GPS.hour, DEC);
+         message += ":";
+         message += String(GPS.minute,DEC);
+         message += ":";
+         message += String(GPS.seconds, DEC);
+         message += '.';
+         message += GPS.milliseconds;
+         message += ", ";
+         message += "Date: ";
+         message += GPS.day, DEC; 
+         message += '/';
+         message += GPS.month, DEC; 
+         message += "/";
+         message += GPS.year, DEC;
+         message += ", ";
+                 
+  
+         if (GPS.fix) {
+             message += "Fix: "; 
+             message += (int)GPS.fix;
+             message += ", ";
+             message += " quality: "; 
+             message += (int)GPS.fixquality;
+             message += ", Location: ";
+             message += convertDegMinToDecDeg (GPS.latitude), 4; 
+             message += ", "; 
+             message += GPS.lat;
+             message += ", "; 
+             message += convertDegMinToDecDeg (GPS.longitude), 4; 
+             message += ", "; 
+             message += GPS.lon;
+             message += ", Speed (knots): "; 
+             message += GPS.speed;
+             message += ", Angle: "; 
+             message += GPS.angle;
+             message += ", Altitude: "; 
+             message += GPS.altitude;
+             message += ", Satellites: "; 
+             message += String((int)GPS.satellites);
+             }
+          else {
+              message += "Fix: "; 
+              message += (int)GPS.fix;
+              message += ", ";
+              message += " quality: "; 
+              message += String((int)GPS.fixquality);  
+             }
+          I2C_setUp(message.c_str());
 //
 //  End addition from the parsing code
 //  
@@ -335,5 +394,55 @@ void loop() {
        }
   }   
 }
+
+// run at startup initilizes I2C comunication
+void I2C_setUp() {
+  Wire.begin(I2C_myAddress);
+  Wire.setClock(10000);
+  Wire.setWireTimeout(0)//0 is no timeout
+}
+
+/*  sends data to I2C data controller
+    takes in a string
+    functions like println() but to controller
+    */
+void I2C_send(char message[]) {
+  Serial.println("in function");
+  int index = 0;
+  int bytes_sent = 0;
+
+  // gain controll of the buss
+  Wire.beginTransmission(I2C_dataCollectorAddress);
+  delay(10);
+  Wire.endTransmission(false);
+  Serial.println("first tansmision");
+
+  do {
+    // makes sure data collector isnt busy
+    bool busy = true;
+    while (busy) {
+      Wire.requestFrom(I2C_dataCollectorAddress, 1, false);
+      delay(5);
+      busy = Wire.read();
+    }
+
+    // send the mesage in 32 byte chunks
+    Wire.beginTransmission(I2C_dataCollectorAddress);
+    do {
+      Wire.write(message[index]);
+      
+      index++;
+      bytes_sent++;
+    } while(message[index-1] != 0 && bytes_sent < 32);
+
+    Wire.endTransmission(false);
+    bytes_sent = 0;
+  } while(message[index-1] != 0);
+
+  // release control of the buss
+  Wire.beginTransmission(I2C_dataCollectorAddress);
+  delay(10);
+  Wire.endTransmission(true);
+} 
 
 /* End code */

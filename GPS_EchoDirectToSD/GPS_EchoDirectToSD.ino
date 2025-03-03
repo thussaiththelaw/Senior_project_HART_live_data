@@ -57,11 +57,19 @@ const int SD_PIN = 10; // this should correspond to the CS "Chip Select" pin on 
 File logfile;
 String line = "";
 
+// I2C settup from senior project team
+#include <Wire.h> //I2C library
+const uint8_t I2C_myAddress = 0b0000010; //7bit number identifing this device on the I2C Bus
+const uint8_t I2C_dataCollectorAddress = 0b0000001; //7bit number identifing where data should be sent to
+void I2C_setUp();
+void I2C_send(char message[]);
+
 void setup() {
   while (!Serial); // wait for Serial to be ready
 
   Serial.begin(115200); // The serial port for the Arduino IDE port output
   mySerial.begin(9600);
+  I2C_setUp();
   delay(2000);
 
   Serial.println("Software Serial GPS Echoing Straight to SD");
@@ -98,6 +106,7 @@ void loop() {
       logfile.print(line); // print the line on the SD file
       logfile.close(); // close the file
       Serial.print(line);
+      I2C_send(line.c_str())
       line=""; // reset the line
     }
   }
@@ -121,3 +130,53 @@ void init_SD() {
 
   Serial.println(" pass");
 }
+
+// run at startup initilizes I2C comunication
+void I2C_setUp() {
+  Wire.begin(I2C_myAddress);
+  Wire.setClock(10000);
+  Wire.setWireTimeout(0)//0 is no timeout
+}
+
+/*  sends data to I2C data controller
+    takes in a string
+    functions like println() but to controller
+    */
+void I2C_send(char message[]) {
+  Serial.println("in function");
+  int index = 0;
+  int bytes_sent = 0;
+
+  // gain controll of the buss
+  Wire.beginTransmission(I2C_dataCollectorAddress);
+  delay(10);
+  Wire.endTransmission(false);
+  Serial.println("first tansmision");
+
+  do {
+    // makes sure data collector isnt busy
+    bool busy = true;
+    while (busy) {
+      Wire.requestFrom(I2C_dataCollectorAddress, 1, false);
+      delay(5);
+      busy = Wire.read();
+    }
+
+    // send the mesage in 32 byte chunks
+    Wire.beginTransmission(I2C_dataCollectorAddress);
+    do {
+      Wire.write(message[index]);
+      
+      index++;
+      bytes_sent++;
+    } while(message[index-1] != 0 && bytes_sent < 32);
+
+    Wire.endTransmission(false);
+    bytes_sent = 0;
+  } while(message[index-1] != 0);
+
+  // release control of the buss
+  Wire.beginTransmission(I2C_dataCollectorAddress);
+  delay(10);
+  Wire.endTransmission(true);
+} 

@@ -42,6 +42,13 @@ int i = 0;
 int N = 60; // Number of samples per file
 int waittime_ms = 1000*30; // milliseconds between samples
 
+// I2C settup from senior project team
+#include <Wire.h> //I2C library
+const uint8_t I2C_myAddress = 0b0010000; //7bit number identifing this device on the I2C Bus
+const uint8_t I2C_dataCollectorAddress = 0b0000001; //7bit number identifing where data should be sent to
+void I2C_setUp();
+void I2C_send(char message[]);
+
 // ====================================================
 
 void setup()
@@ -50,6 +57,7 @@ void setup()
  // Open serial communications for debugging
 
 // Serial.begin(9600);
+I2C_setUp();
 init_RTC();
  // (note 24-hour time: 3pm -> 15)
   // This line sets the RTC with an
@@ -139,6 +147,29 @@ logfile.print(mz);
 logfile.print(","); 
 logfile.print(sqrt(mx*mx+my*my+mz*mz));
 logfile.println();
+
+// send same data over radio
+String message = "";
+message += String(now.year()); 
+message += "-"; 
+message += String(now.month()); 
+message += "-"; 
+message += String(now.day()); 
+message += ",";
+message += String(now.hour());
+message += ":"; 
+message += String(now.minute()); 
+message += ":"; 
+message += String(now.second()); 
+message += ","; 
+message += String(mx);
+message += ","; 
+message += String(my);
+message += ","; 
+message += String(mz);
+message += ","; 
+message += String(sqrt(mx*mx+my*my+mz*mz));
+I2C_send(message.c_str());
  
 // write same data to serial (again, only for debugging purposes)
 // Serial.print(now.year()); 
@@ -232,5 +263,55 @@ if (!SD.exists(filename)) { Serial.print("Opened \’SD:"); Serial.print(filenam
 } }
  return SD.open(filename, FILE_WRITE);
 }
+
+// run at startup initilizes I2C comunication
+void I2C_setUp() {
+  Wire.begin(I2C_myAddress);
+  Wire.setClock(10000);
+  Wire.setWireTimeout(0)//0 is no timeout
+}
+
+/*  sends data to I2C data controller
+    takes in a string
+    functions like println() but to controller
+    */
+void I2C_send(char message[]) {
+  Serial.println("in function");
+  int index = 0;
+  int bytes_sent = 0;
+
+  // gain controll of the buss
+  Wire.beginTransmission(I2C_dataCollectorAddress);
+  delay(10);
+  Wire.endTransmission(false);
+  Serial.println("first tansmision");
+
+  do {
+    // makes sure data collector isnt busy
+    bool busy = true;
+    while (busy) {
+      Wire.requestFrom(I2C_dataCollectorAddress, 1, false);
+      delay(5);
+      busy = Wire.read();
+    }
+
+    // send the mesage in 32 byte chunks
+    Wire.beginTransmission(I2C_dataCollectorAddress);
+    do {
+      Wire.write(message[index]);
+      
+      index++;
+      bytes_sent++;
+    } while(message[index-1] != 0 && bytes_sent < 32);
+
+    Wire.endTransmission(false);
+    bytes_sent = 0;
+  } while(message[index-1] != 0);
+
+  // release control of the buss
+  Wire.beginTransmission(I2C_dataCollectorAddress);
+  delay(10);
+  Wire.endTransmission(true);
+} 
 
 
