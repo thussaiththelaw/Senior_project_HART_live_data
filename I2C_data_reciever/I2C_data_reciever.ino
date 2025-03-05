@@ -1,102 +1,129 @@
-#include <Wire.h> //I2C library
+#include <Wire.h>  // I2C library
+#include <Meshtastic.h>  // Meshtastic library
 
 // I2C variables
-const int I2C_bufferSize = 32; //make sure it is the same size as the Wire.h buffer
+const int I2C_bufferSize = 32; // Make sure it is the same size as the Wire.h buffer
 bool I2C_recievedFlag;
 char I2C_buffer[I2C_bufferSize];
 
-// only thing that should need to be changed up here
-const uint8_t I2C_myAddress = 0b0000001; //7bit number identifing this device on the I2C Bus
+// Device I2C address (7-bit)
+const uint8_t I2C_myAddress = 0b0000001;
 
-// string buffer variables
+// String buffer variables
 const int charBufferSize = 1024;
 char charBuffer[charBufferSize];
 int charBufferIndex;
 
-// function headers
+// Meshtastic settings
+#define SERIAL_RX_PIN 2
+#define SERIAL_TX_PIN 3
+#define BAUD_RATE 19200
+bool not_yet_connected = true;
+
+// Function headers
 void I2C_recieve();
 void I2C_interupt(int number_of_bytes);
 void I2C_request();
-void radioSend(char message[]);
-
+void radioSend(const char message[]);
+void connected_callback(mt_node_t *node, mt_nr_progress_t progress);
+void text_message_callback(uint32_t from, uint32_t to, uint8_t channel, const char* text);
 
 void setup() {
-  // put your setup code here, to run once:
-  
-  // set up buffers
-  for (int i = 0; i < I2C_bufferSize; i++) I2C_buffer[i] = 0;
-  for (int i = 0; i < charBufferSize; i++) charBuffer[i] = 0;
+  // Initialize buffers
+  memset(I2C_buffer, 0, I2C_bufferSize);
+  memset(charBuffer, 0, charBufferSize);
   charBufferIndex = 0;
-  int i = 0;
 
-  // initiate serial protocol
-  Serial.begin(19200);
+  // Start serial communication
+  Serial.begin(9600);
+  while (!Serial && millis() < 5000);  // Wait for Serial to be available
 
-  // initeate I2C protocol 
+  Serial.println("Booting Meshtastic send/receive client...");
+
+  // Initialize I2C
   I2C_recievedFlag = false;
   Wire.begin(I2C_myAddress);
   Wire.onReceive(I2C_interupt);
   Wire.onRequest(I2C_request);
-  radioSend("starting");
+
+  // Initialize Meshtastic (Serial connection)
+  mt_serial_init(SERIAL_RX_PIN, SERIAL_TX_PIN, BAUD_RATE);
+  mt_set_debug(false);
+  mt_request_node_report(connected_callback);
+  set_text_message_callback(text_message_callback);
+
+  radioSend("Meshtastic Telemetry Started");
 }
 
 void loop() {
-  if(I2C_recievedFlag) {
+  uint32_t now = millis();
+  bool can_send = mt_loop(now);
+
+  if (I2C_recievedFlag) {
     I2C_recieve();
   }
 }
 
-/*  reads the I2C_buffer string
-    sends the string to the radio if not empty
-    */
+// Reads the I2C_buffer string and sends it via Meshtastic if not empty
 void I2C_recieve() {
-    int i = 0;
-    // copy part of mesage to whole mesage
-    do {
-      charBuffer[charBufferIndex] = I2C_buffer[i];
-      charBufferIndex++;
-      i++;
-    } while ((I2C_buffer[i-1] != 0) && (i < I2C_bufferSize) && (charBufferIndex < charBufferSize - 1));
-    
+  int i = 0;
+  do {
+    charBuffer[charBufferIndex] = I2C_buffer[i];
+    charBufferIndex++;
+    i++;
+  } while ((I2C_buffer[i - 1] != 0) && (i < I2C_bufferSize) && (charBufferIndex < charBufferSize - 1));
 
-
-    // if message is finished 
-    if (I2C_buffer[i-1] == 0 || charBufferIndex >= charBufferSize - 1) {
-      // send message
-      if (charBuffer[0] != 0) radioSend(charBuffer);
-      // clear message buffer
-      i = 0;
-      while (i <= charBufferIndex && i < charBufferSize) {
-        charBuffer[i] = 0;
-        i++;
-      }
-      charBufferIndex = 0;
+  // If the message is complete
+  if (I2C_buffer[i - 1] == 0 || charBufferIndex >= charBufferSize - 1) {
+    if (charBuffer[0] != 0) {
+      radioSend(charBuffer);
     }
-  // clear I2C_buffer
-  for (int i = 0; i < I2C_bufferSize; i++) I2C_buffer[i] = 0;
-  I2C_recievedFlag = false; //set flag to false
+    memset(charBuffer, 0, charBufferSize);
+    charBufferIndex = 0;
+  }
+
+  memset(I2C_buffer, 0, I2C_bufferSize);
+  I2C_recievedFlag = false;
 }
 
-/*  handles an I2C interupt
-    sets flag I2C_recieved_flag to true
-    interprets incoming bytes as chars
-    stores as string I2C_buffer 
-    */
+// Handles an I2C interrupt
 void I2C_interupt(int number_of_bytes) {
-  for(int i = 0; i < number_of_bytes; i++)
-  {
+  for (int i = 0; i < number_of_bytes; i++) {
     I2C_buffer[i] = Wire.read();
   }
-  I2C_recievedFlag = true; //set flag to true
+  I2C_recievedFlag = true;
 }
 
+// Handles an I2C request
 void I2C_request() {
   Wire.write(I2C_recievedFlag);
 }
 
-/*  the code to send data over meshtastic
-    for now it is a serial print
-    */
-void radioSend(char message[]){
+// Sends data over Meshtastic
+void radioSend(const char message[]) {
+  uint32_t dest = BROADCAST_ADDR;  // Broadcast by default
+  uint8_t channel_index = 1;
+  mt_send_text(message, dest, channel_index);
+  Serial.print("Sent: ");
   Serial.println(message);
+}
+
+// Called when connected to a Meshtastic node
+void connected_callback(mt_node_t *node, mt_nr_progress_t progress) {
+  if (not_yet_connected) {
+    Serial.println("Connected to Meshtastic device!");
+  }
+  not_yet_connected = false;
+}
+
+// Called when a message is received via Meshtastic
+void text_message_callback(uint32_t from, uint32_t to, uint8_t channel, const char* text) {
+  Serial.print("Received a message on channel ");
+  Serial.print(channel);
+  Serial.print(" from ");
+  Serial.print(from);
+  Serial.print(" to ");
+  Serial.print(to);
+  Serial.print(": ");
+  Serial.println(text);
 }
