@@ -6,6 +6,7 @@ const uint8_t I2C_myAddress = 0b0000010; //7bit number identifing this device on
 const uint8_t I2C_dataCollectorAddress = 0b0000001; //7bit number identifing where data should be sent to
 void I2C_setUp();
 void I2C_send(char message[]);
+void I2C_send(String message);
 
 void setup() {
   // put your setup code here, to run once:
@@ -22,15 +23,14 @@ void loop() {
 void I2C_setUp() {
   Wire.begin(I2C_myAddress);
   Wire.setClock(10000);
-  Wire.setWireTimeout(0)//0 is no timeout
+  Wire.setWireTimeout(25000);//0 is no timeout
 }
 
 /*  sends data to I2C data controller
-    takes in a string
+    takes in a char array
     functions like println() but to controller
     */
 void I2C_send(char message[]) {
-  Serial.println("in function");
   int index = 0;
   int bytes_sent = 0;
 
@@ -38,7 +38,6 @@ void I2C_send(char message[]) {
   Wire.beginTransmission(I2C_dataCollectorAddress);
   delay(10);
   Wire.endTransmission(false);
-  Serial.println("first tansmision");
 
   do {
     // makes sure data collector isnt busy
@@ -67,3 +66,10 @@ void I2C_send(char message[]) {
   delay(10);
   Wire.endTransmission(true);
 } 
+/*  sends data to I2C data controller
+    takes in a string
+    functions like println() but to controller
+    */
+void I2C_send(String message){
+  I2C_send(message.c_str());
+}
