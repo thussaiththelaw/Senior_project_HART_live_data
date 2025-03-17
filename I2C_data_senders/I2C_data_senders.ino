@@ -37,15 +37,17 @@ void I2C_send(char message[]) {
   // gain controll of the buss
   Wire.beginTransmission(I2C_dataCollectorAddress);
   delay(10);
-  Wire.endTransmission(false);
-
+  if (Wire.endTransmission(false) > 1) return;
   do {
     // makes sure data collector isnt busy
     bool busy = true;
+    int timeout = 0;
     while (busy) {
       Wire.requestFrom(I2C_dataCollectorAddress, 1, false);
       delay(5);
       busy = Wire.read();
+      timeout++;
+      if (timeout > 1000) return;
     }
 
     // send the mesage in 32 byte chunks
