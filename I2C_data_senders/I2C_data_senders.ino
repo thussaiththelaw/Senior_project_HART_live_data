@@ -7,6 +7,8 @@ const uint8_t I2C_dataCollectorAddress = 0b0000001; //7bit number identifing whe
 void I2C_setUp();
 void I2C_send(char message[]);
 void I2C_send(String message);
+char animation[14][16] = {"(^*O*^)","<(*O*<)"," <(*O*<)","  <(*O*<)","   <(*O*<)","    <(*O*<)","     <(*O*<)","      (^*O*^)","     (>*O*)>","    (>*O*)>","   (>*O*)>","  (>*O*)>"," (>*O*)>","(>*O*)>"};
+int animationCount = 0;
 
 void setup() {
   // put your setup code here, to run once:
@@ -14,16 +16,17 @@ void setup() {
 }
 
 void loop() {
-  delay(5000);
-  I2C_send("2 resonable message");
 
+  I2C_send(animation[animationCount]);
+  animationCount++;
+  if (animationCount >= 14) animationCount = 0;
+  delay(30000);
 }
 
 // run at startup initilizes I2C comunication
 void I2C_setUp() {
   Wire.begin(I2C_myAddress);
-  Wire.setClock(10000);
-  Wire.setWireTimeout(25000);//0 is no timeout
+  Wire.setClock(100000);
 }
 
 /*  sends data to I2C data controller
