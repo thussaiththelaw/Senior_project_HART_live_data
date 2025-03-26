@@ -145,14 +145,14 @@ void init_SD() {
 // run at startup initilizes I2C comunication
 void I2C_setUp() {
   Wire.begin(I2C_myAddress);
-  Wire.setClock(1000);
+  Wire.setClock(100000);
 }
 
 /*  sends data to I2C data controller
     takes in a char array
     functions like println() but to controller
     */
-void I2C_send(char message[]) {
+void I2C_send(char *message) {
   int index = 0;
   int bytes_sent = 0;
 
