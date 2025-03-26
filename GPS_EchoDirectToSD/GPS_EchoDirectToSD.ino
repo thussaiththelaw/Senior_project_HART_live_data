@@ -141,10 +141,11 @@ void init_SD() {
   Serial.println(" pass");
 }
 
+
 // run at startup initilizes I2C comunication
 void I2C_setUp() {
   Wire.begin(I2C_myAddress);
-  Wire.setClock(10000);
+  Wire.setClock(1000);
 }
 
 /*  sends data to I2C data controller
@@ -157,7 +158,7 @@ void I2C_send(char message[]) {
 
   // gain controll of the buss
   Wire.beginTransmission(I2C_dataCollectorAddress);
-  delay(10);
+  delay(1);
   if (Wire.endTransmission(false) > 1) return;
   do {
     // makes sure data collector isnt busy
@@ -186,7 +187,7 @@ void I2C_send(char message[]) {
 
   // release control of the buss
   Wire.beginTransmission(I2C_dataCollectorAddress);
-  delay(5);
+  delay(1);
   Wire.endTransmission(true);
 } 
 /*  sends data to I2C data controller
@@ -196,3 +197,4 @@ void I2C_send(char message[]) {
 void I2C_send(String message){
   I2C_send(message.c_str());
 }
+
