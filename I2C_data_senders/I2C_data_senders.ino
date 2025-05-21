@@ -1,80 +1,90 @@
+#include <Wire.h> // I2C library
 
+constexpr uint8_t I2C_MY_ADDRESS = 0b0000010; // This device's I2C address
+constexpr uint8_t I2C_COLLECTOR_ADDRESS = 0b0000001; // Gateway's I2C address
+constexpr uint8_t I2C_BUFFER_SIZE = 32; // Must match receiver's buffer size
+constexpr int BUSY_TIMEOUT = 1000; // Number of attempts before giving up
 
-// I2C settup from senior project team
-#include <Wire.h> //I2C library
-const uint8_t I2C_myAddress = 0b0000010; //7bit number identifing this device on the I2C Bus
-const uint8_t I2C_dataCollectorAddress = 0b0000001; //7bit number identifing where data should be sent to
 void I2C_setUp();
-void I2C_send(char message[]);
-void I2C_send(String message);
-char animation[14][16] = {"(^*O*^)","<(*O*<)"," <(*O*<)","  <(*O*<)","   <(*O*<)","    <(*O*<)","     <(*O*<)","      (^*O*^)","     (>*O*)>","    (>*O*)>","   (>*O*)>","  (>*O*)>"," (>*O*)>","(>*O*)>"};
+void I2C_send(const char message[]);
+void I2C_send(const String& message);
+
+char animation[14][16] = {
+  "(^*O*^)", "<(*O*<)", " <(*O*<)", "  <(*O*<)", "   <(*O*<)", "    <(*O*<)",
+  "     <(*O*<)", "      (^*O*^)", "     (>*O*)>", "    (>*O*)>", "   (>*O*)>",
+  "  (>*O*)>", " (>*O*)>", "(>*O*)>"
+};
 int animationCount = 0;
 
 void setup() {
-  // put your setup code here, to run once:
   I2C_setUp();
 }
 
 void loop() {
-
   I2C_send(animation[animationCount]);
-  animationCount++;
-  if (animationCount >= 14) animationCount = 0;
+  animationCount = (animationCount + 1) % 14;
   delay(30000);
 }
 
-// run at startup initilizes I2C comunication
+// Initializes I2C communication
 void I2C_setUp() {
-  Wire.begin(I2C_myAddress);
+  Wire.begin(I2C_MY_ADDRESS);
   Wire.setClock(100000);
 }
 
-/*  sends data to I2C data controller
-    takes in a char array
-    functions like println() but to controller
-    */
-void I2C_send(char message[]) {
+/**
+ * Sends a null-terminated char array to the I2C collector in 32-byte chunks.
+ */
+void I2C_send(const char message[]) {
   int index = 0;
   int bytes_sent = 0;
 
-  // gain controll of the buss
-  Wire.beginTransmission(I2C_dataCollectorAddress);
+  // Gain control of the bus (dummy transmission)
+  Wire.beginTransmission(I2C_COLLECTOR_ADDRESS);
   delay(10);
   if (Wire.endTransmission(false) > 1) return;
+
   do {
-    // makes sure data collector isnt busy
+    // Wait until collector is not busy
     bool busy = true;
     int timeout = 0;
     while (busy) {
-      Wire.requestFrom(I2C_dataCollectorAddress, 1, false);
+      Wire.requestFrom(I2C_COLLECTOR_ADDRESS, (size_t)1, false);
       delay(5);
-      busy = Wire.read();
+      if (Wire.available()) {
+        busy = Wire.read();
+      } else {
+        busy = true;
+      }
       timeout++;
-      if (timeout > 1000) return;
+      if (timeout > BUSY_TIMEOUT) {
+        // Optional: print a debug message
+        // Serial.println("I2C busy timeout");
+        return;
+      }
     }
 
-    // send the mesage in 32 byte chunks
-    Wire.beginTransmission(I2C_dataCollectorAddress);
+    // Send the message in 32-byte chunks
+    Wire.beginTransmission(I2C_COLLECTOR_ADDRESS);
+    bytes_sent = 0;
     do {
       Wire.write(message[index]);
-      
       index++;
       bytes_sent++;
-    } while(message[index-1] != 0 && bytes_sent < 32);
+    } while (message[index - 1] != 0 && bytes_sent < I2C_BUFFER_SIZE);
+    Wire.endTransmission(false); // Keep connection for next chunk if needed
 
-    Wire.endTransmission(false);
-    bytes_sent = 0;
-  } while(message[index-1] != 0);
+  } while (message[index - 1] != 0);
 
-  // release control of the buss
-  Wire.beginTransmission(I2C_dataCollectorAddress);
+  // Release control of the bus
+  Wire.beginTransmission(I2C_COLLECTOR_ADDRESS);
   delay(10);
   Wire.endTransmission(true);
-} 
-/*  sends data to I2C data controller
-    takes in a string
-    functions like println() but to controller
-    */
-void I2C_send(String message){
+}
+
+/**
+ * Sends a String to the I2C collector.
+ */
+void I2C_send(const String& message) {
   I2C_send(message.c_str());
 }
