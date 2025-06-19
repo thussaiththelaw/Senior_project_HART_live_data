@@ -27,7 +27,8 @@ float convertToDecimalDegrees(float coordinate, char direction) {
 
 void setup() {
   Serial.begin(115200);
-  while (!Serial);  // Wait for Serial Monitor to open
+  // Remove the wait for Serial Monitor
+  // while (!Serial);  // Wait for Serial Monitor to open
 
   Serial.println("Adafruit GPS parsing + SD logging test");
 
@@ -71,76 +72,37 @@ void setup() {
 }
 
 void loop() {
-  // Read incoming data from GPS
   char c = GPS.read();
-  if (GPSECHO && c) {
-    Serial.write(c);  // Echo raw NMEA sentences to Serial Monitor
-  }
+  if (GPSECHO && c) Serial.write(c);
 
-  // If a full sentence is received, parse it
+  // Only act when a new NMEA sentence is received and parsed
   if (GPS.newNMEAreceived()) {
-    if (!GPS.parse(GPS.lastNMEA())) {
-      return; // Failed to parse, wait for the next one
-    }
-  }
-
-  // Every 2 seconds, print and log GPS summary info
-  if (millis() - timer > 2000) {
-    timer = millis();
-
-    Serial.println();
-    Serial.print("Time: ");
-    if (GPS.hour < 10) Serial.print('0');
-    Serial.print(GPS.hour); Serial.print(':');
-    if (GPS.minute < 10) Serial.print('0');
-    Serial.print(GPS.minute); Serial.print(':');
-    if (GPS.seconds < 10) Serial.print('0');
-    Serial.println(GPS.seconds);
-
-    Serial.print("Date: ");
-    Serial.print(GPS.day); Serial.print('/');
-    Serial.print(GPS.month); Serial.print("/20");
-    Serial.println(GPS.year);
-
-    Serial.print("Fix: "); Serial.print((int)GPS.fix);
-    Serial.print(" | Quality: "); Serial.println((int)GPS.fixquality);
+    if (!GPS.parse(GPS.lastNMEA())) return;
 
     if (GPS.fix) {
       // Convert to decimal degrees
       float latitude = convertToDecimalDegrees(GPS.latitude, GPS.lat);
       float longitude = convertToDecimalDegrees(GPS.longitude, GPS.lon);
+      float altitude = GPS.altitude;
+      float speed_mps = GPS.speed * 0.514444; // knots to m/s
 
-      Serial.print("Location (Google Maps format): ");
-      Serial.print(latitude, 6);
-      Serial.print(", ");
-      Serial.println(longitude, 6);
-
-      Serial.print("Speed (knots): "); Serial.println(GPS.speed);
-      Serial.print("Angle: "); Serial.println(GPS.angle);
-      Serial.print("Altitude: "); Serial.println(GPS.altitude);
-      Serial.print("Satellites: "); Serial.println((int)GPS.satellites);
+      // Print to Serial
+      Serial.print(GPS.hour < 10 ? "0" : ""); Serial.print(GPS.hour); Serial.print(":");
+      Serial.print(GPS.minute < 10 ? "0" : ""); Serial.print(GPS.minute); Serial.print(":");
+      Serial.print(GPS.seconds < 10 ? "0" : ""); Serial.print(GPS.seconds); Serial.print(", ");
+      Serial.print(latitude, 6); Serial.print(", ");
+      Serial.print(longitude, 6); Serial.print(", ");
+      Serial.print(altitude, 2); Serial.print(", ");
+      Serial.println(speed_mps, 2);
 
       // Log to SD card
-      logfile.print("Time: ");
-      if (GPS.hour < 10) logfile.print('0');
-      logfile.print(GPS.hour); logfile.print(':');
-      if (GPS.minute < 10) logfile.print('0');
-      logfile.print(GPS.minute); logfile.print(':');
-      if (GPS.seconds < 10) logfile.print('0');
-      logfile.print(GPS.seconds); logfile.print(", ");
-
-      logfile.print("Date: ");
-      logfile.print(GPS.day); logfile.print('/');
-      logfile.print(GPS.month); logfile.print("/20");
-      logfile.print(GPS.year); logfile.print(", ");
-
-      logfile.print("Lat: "); logfile.print(latitude, 6); logfile.print(", ");
-      logfile.print("Lon: "); logfile.print(longitude, 6); logfile.print(", ");
-
-      logfile.print("Speed: "); logfile.print(GPS.speed); logfile.print(" knots, ");
-      logfile.print("Angle: "); logfile.print(GPS.angle); logfile.print(", ");
-      logfile.print("Altitude: "); logfile.print(GPS.altitude); logfile.print(" m, ");
-      logfile.print("Satellites: "); logfile.println((int)GPS.satellites);
+      logfile.print(GPS.hour < 10 ? "0" : ""); logfile.print(GPS.hour); logfile.print(":");
+      logfile.print(GPS.minute < 10 ? "0" : ""); logfile.print(GPS.minute); logfile.print(":");
+      logfile.print(GPS.seconds < 10 ? "0" : ""); logfile.print(GPS.seconds); logfile.print(",");
+      logfile.print(latitude, 6); logfile.print(",");
+      logfile.print(longitude, 6); logfile.print(",");
+      logfile.print(altitude, 2); logfile.print(",");
+      logfile.println(speed_mps, 2);
 
       logfile.flush();
     } else {
