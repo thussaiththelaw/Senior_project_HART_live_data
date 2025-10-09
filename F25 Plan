@@ -1,0 +1,10 @@
+The plan this semester is to have a Meshtastic radio in each of the High-Altitude Balloon boxes that we want live data from.
+Description of the project:
+
+There will be a main Meshtastic device that will have a better antenna than the other Meshtastic radios.
+-It has a Heltec V3 Meshtastic variant connected to an Arduino Nano Every Microcontroller
+-It's purpose is to collect the data from the other systems on the balloon and forward it to the ground receiving station
+
+Each system we want live data needs a Meshtastic to send it's live data to the main Meshtastic.
+-They will have a Meshtastic radio and will send their data using a serial connection to the Meshtastic. 
+-You can't send continuous data, only text data, and I'd reccomend limiting sending a maximum of every 20 seconds to not overload anything when multiple systems will be sending. 
